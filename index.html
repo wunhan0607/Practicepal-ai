@@ -121,8 +121,9 @@ textarea{min-height:88px;resize:vertical}
         <h2>Weekly Lesson Input</h2>
         <div class="sub">Only enter what changed this week.</div>
         <label>Student</label><select id="lessonStudent"></select>
-        <label>Book / material</label><select id="lessonBook"></select>
-        <label>Page / section</label><input id="lessonPage" placeholder="e.g. 18–19"/>
+        <label>Books / materials used this lesson</label>
+        <div class="book-list" id="lessonMaterials"></div>
+        <div class="meta" style="margin-top:7px">Select every book used today and enter its page / section.</div>
 
         <h3>Lesson progress</h3>
         <div class="chips" id="learned">
@@ -268,7 +269,12 @@ function refreshSelectors(){
  refreshLessonBooks();renderDashboard();
 }
 function refreshLessonBooks(){
- const s=selectedStudent($("#lessonStudent").value);$("#lessonBook").innerHTML=(s?.books||[]).map(b=>`<option>${b}</option>`).join("")
+ const s=selectedStudent($("#lessonStudent").value), box=$("#lessonMaterials");
+ box.innerHTML=(s?.books||[]).length?(s.books.map((b,i)=>`<div class="book-row lesson-material-row"><label style="display:flex;align-items:center;gap:8px;margin:0;flex:1"><input type="checkbox" class="lesson-book-check" data-book="${b.replace(/"/g,"&quot;")}" ${i===0?"checked":""} style="width:auto"/> <span>${b}</span></label><input class="lesson-page" placeholder="Page / section" style="flex:1" ${i===0?"":"disabled"}/></div>`).join("")):'<div class="empty">Add books in the student profile first.</div>';
+ $$(".lesson-book-check").forEach(c=>c.onchange=()=>{const input=c.closest(".lesson-material-row").querySelector(".lesson-page");input.disabled=!c.checked;if(!c.checked)input.value=""});
+}
+function selectedLessonMaterials(){
+ return $$(".lesson-material-row").map(row=>({check:row.querySelector(".lesson-book-check"),page:row.querySelector(".lesson-page")})).filter(x=>x.check.checked).map(x=>({book:x.check.dataset.book,page:x.page.value.trim()}));
 }
 $("#lessonStudent").onchange=refreshLessonBooks;$("#dashStudent").onchange=renderDashboard;
 $("#startLessonBtn").onclick=()=>{$("#lessonStudent").value=state.selectedProfileId;refreshLessonBooks();showView("lesson")};
@@ -291,11 +297,12 @@ function methodFor(improve,methods){
 }
 function generateSummary(){
  const s=selectedStudent($("#lessonStudent").value); if(!s)return alert("Create a student first.");
- const page=$("#lessonPage").value.trim()||"the assigned section", book=$("#lessonBook").value||"the lesson material";
+ const materials=selectedLessonMaterials(); if(!materials.length)return alert("Please select at least one book / material.");
+ const materialText=humanList(materials.map(m=>m.page?`${m.book}, pages ${m.page}`:m.book));
  const learned=chipValues("learned"), improve=chipValues("improve"), days=$("#days").value, reps=$("#reps").value;
- const lesson=learned.length?`${s.name} worked on ${book}, pages ${page}, focusing on ${humanList(learned.map(x=>x.toLowerCase()))}.`:`${s.name} worked on ${book}, pages ${page}.`;
+ const lesson=learned.length?`${s.name} worked on ${materialText}, focusing on ${humanList(learned.map(x=>x.toLowerCase()))}.`:`${s.name} worked on ${materialText}.`;
  const need=improve.length?`${humanList(improve)} still needs attention, especially during independent practice.`:"No major difficulty was noted in today’s lesson.";
- const method=methodFor(improve,s.methods), plan=`Practise ${days} days this week and play pages ${page} ${reps} times each session.`;
+ const method=methodFor(improve,s.methods), plan=`Practise ${days} days this week. For each selected material, repeat the assigned section ${reps} times each session.`;
  $("#outLesson").textContent=lesson;$("#outImprove").textContent=need;$("#outMethod").textContent=method;$("#outPlan").textContent=plan;
  $("#whatsappBox").value=s.tone==="Concise"?`Hi! ${lesson} ${need} This week: ${method} ${plan}`:s.tone==="Friendly & casual"?`Hi! Quick update on ${s.name} 😊 ${lesson} ${need}\n\nFor this week: ${method} ${plan}`:`Hi! Here’s a quick update on ${s.name}. ${lesson} ${need}\n\nFor this week, ${method} ${plan}`;
 }
@@ -303,7 +310,8 @@ $("#generateBtn").onclick=generateSummary;
 $("#copyBtn").onclick=async()=>{await navigator.clipboard.writeText($("#whatsappBox").value);$("#copyBtn").textContent="Copied!";setTimeout(()=>$("#copyBtn").textContent="Copy",1200)};
 $("#saveLessonBtn").onclick=()=>{
  const s=selectedStudent($("#lessonStudent").value);if(!s)return;
- const lesson={date:new Date().toLocaleDateString(undefined,{month:"short",day:"numeric"}),book:$("#lessonBook").value||"",page:$("#lessonPage").value.trim(),learned:chipValues("learned"),improve:chipValues("improve"),message:$("#whatsappBox").value};
+ const materials=selectedLessonMaterials(); if(!materials.length)return alert("Please select at least one book / material.");
+ const lesson={date:new Date().toLocaleDateString(undefined,{month:"short",day:"numeric"}),materials,book:materials[0]?.book||"",page:materials[0]?.page||"",learned:chipValues("learned"),improve:chipValues("improve"),message:$("#whatsappBox").value};
  s.lessons.unshift(lesson);state.selectedProfileId=s.id;saveState();renderDashboard();alert("Lesson saved to dashboard.")
 };
 function renderDashboard(){
@@ -311,7 +319,7 @@ function renderDashboard(){
  $("#dashBook").textContent=s.books[0]||"—";$("#dashPage").textContent=s.lessons[0]?.page||"—";
  const counts={};s.lessons.forEach(l=>(l.improve||[]).forEach(i=>counts[i]=(counts[i]||0)+1));const focus=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
  $("#dashFocus").textContent=focus?`${focus[0]} · ${focus[1]} lesson${focus[1]>1?"s":""}`:"—";
- $("#history").innerHTML=s.lessons.length?s.lessons.map(l=>`<div class="history-item"><div class="meta">${l.date}</div><b>${l.book||"Lesson"}${l.page?" · pages "+l.page:""}</b><br/>Progress: ${humanList(l.learned||[])||"—"}<br/>Needs improvement: ${humanList(l.improve||[])||"—"}</div>`).join(""):'<div class="empty">No saved lessons yet.</div>';
+ $("#history").innerHTML=s.lessons.length?s.lessons.map(l=>{const mats=(l.materials?.length?l.materials:[{book:l.book||"Lesson",page:l.page||""}]);const matText=mats.map(m=>`${m.book||"Lesson"}${m.page?" · pages "+m.page:""}`).join("<br/>");return `<div class="history-item"><div class="meta">${l.date}</div><b>${matText}</b><br/>Progress: ${humanList(l.learned||[])||"—"}<br/>Needs improvement: ${humanList(l.improve||[])||"—"}</div>`}).join(""):'<div class="empty">No saved lessons yet.</div>';
 }
 async function init(){
   const cloud=await loadCloudState();
