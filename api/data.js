@@ -50,7 +50,7 @@ export default async function handler(req, res) {
         DATA_PATH,
         JSON.stringify(state),
         {
-          access: "public",
+          access: "private",
           addRandomSuffix: false,
           allowOverwrite: true,
           contentType: "application/json"
