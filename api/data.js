@@ -1,9 +1,10 @@
-import { put, list } from "@vercel/blob";
+import { put, list, get } from "@vercel/blob";
 
 const DATA_PATH = "practicepal/data.json";
 
 export default async function handler(req, res) {
   try {
+    // READ cloud data
     if (req.method === "GET") {
       const { blobs } = await list({
         prefix: DATA_PATH,
@@ -20,19 +21,22 @@ export default async function handler(req, res) {
         });
       }
 
-      const response = await fetch(blob.url, {
-        cache: "no-store"
+      // Private Blob must be read with get()
+      const result = await get(DATA_PATH, {
+        access: "private"
       });
 
-      if (!response.ok) {
+      if (!result || result.statusCode !== 200) {
         throw new Error("Could not read cloud data");
       }
 
-      const state = await response.json();
+      const text = await new Response(result.stream).text();
+      const state = JSON.parse(text);
 
       return res.status(200).json(state);
     }
 
+    // SAVE cloud data
     if (req.method === "PUT") {
       const state = req.body;
 
