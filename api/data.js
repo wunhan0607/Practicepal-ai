@@ -1,6 +1,8 @@
 import { put, list, get } from "@vercel/blob";
 
-const DATA_PATH = "practicepal/data.json";
+const DATA_PATH = process.env.VERCEL_ENV === "production"
+  ? "practicepal/data.json"
+  : "practicepal/preview/data.json";
 
 export default async function handler(req, res) {
   try {
