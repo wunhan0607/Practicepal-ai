@@ -85,7 +85,7 @@ const save=()=>{
    .catch(e=>{console.error(e);document.getElementById('syncStatus').textContent='Cloud save failed · local copy kept';});
 };const uid=()=>Math.random().toString(36).slice(2,10);const student=()=>db.students.find(s=>s.id===studentId);
 function tab(x){page=x;render()}function render(){['Students','Lesson','History'].forEach(t=>$('#tab'+t).classList.toggle('active',page===t.toLowerCase()));if(page==='students')studentsUI();if(page==='lesson')lessonUI();if(page==='history')historyUI()}
-function studentsUI(){let s=db.students.find(x=>x.id===editId);window.profileMethods=[...(s?.methods||[])];$('#view').innerHTML=`<div class="card"><h2>${s?'Edit Student':'New Student'}</h2><div class="grid"><div><label>Name</label><input id="name" value="${esc(s?.name||'')}"></div><div><label>Level</label><select id="level"><option>Beginner</option><option>Intermediate</option></select></div><div><label>Exam</label><select id="exam"><option value="none">None</option><option value="ABRSM">ABRSM 2027–28</option></select></div><div><label>ABRSM Grade</label><select id="grade">${Object.keys(catalog).map(g=>`<option value="${g}">Grade ${g}</option>`).join('')}</select></div></div><label>Books (one per line)</label><textarea id="books" placeholder="Piano Adventures&#10;Alfred">${esc((s?.books||[]).join('\n'))}</textarea><label>Teacher's Preferred Practice Methods</label><p class="muted">Select reusable methods; weekly lessons will let you choose which were actually assigned.</p><div class="chips" id="profileMethodChips"></div><div class="row"><input id="customMethod" style="flex:1;min-width:180px" placeholder="Add your own method"><button onclick="addCustomMethod()">+ Add method</button></div><div id="pieceProfile"></div><div class="row"><button class="primary" onclick="saveStudent()">Save Student</button><button onclick="editId=null;render()">Clear / New</button></div></div><div class="card"><h2>Saved Students</h2>${db.students.map(x=>`<div class="section row"><span><b>${esc(x.name)}</b> · ${esc(x.level)} ${x.exam==='ABRSM'?'· Grade '+x.grade+' · '+(x.pieces||[]).length+' pieces':''}</span><button onclick="editId='${x.id}';render()">Edit</button></div>`).join('')||'<p class="muted">No students yet.</p>'}</div>`;$('#level').value=s?.level||'Beginner';$('#exam').value=s?.exam||'none';$('#grade').value=s?.grade||'1';window.profilePieces=[...(s?.pieces||[])];$('#grade').onchange=()=>{window.profilePieces=[];renderProfilePieces()};$('#exam').onchange=renderProfilePieces;renderProfilePieces();renderProfileMethods()}
+function studentsUI(){let s=db.students.find(x=>x.id===editId);window.profileMethods=[...(s?.methods||[])];$('#view').innerHTML=`<div class="card"><h2>${s?'Edit Student':'New Student'}</h2><div class="grid"><div><label>Name</label><input id="name" value="${esc(s?.name||'')}"></div><div><label>Level</label><select id="level"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></div><div><label>Exam</label><select id="exam"><option value="none">None</option><option value="ABRSM">ABRSM 2027–28</option></select></div><div><label>ABRSM Grade</label><select id="grade">${Object.keys(catalog).map(g=>`<option value="${g}">Grade ${g}</option>`).join('')}</select></div></div><label>Books (one per line)</label><textarea id="books" placeholder="Piano Adventures&#10;Alfred">${esc((s?.books||[]).join('\n'))}</textarea><label>Teacher's Preferred Practice Methods</label><p class="muted">Select reusable methods; weekly lessons will let you choose which were actually assigned.</p><div class="chips" id="profileMethodChips"></div><div class="row"><input id="customMethod" style="flex:1;min-width:180px" placeholder="Add your own method"><button onclick="addCustomMethod()">+ Add method</button></div><div id="pieceProfile"></div><div class="row"><button class="primary" onclick="saveStudent()">Save Student</button><button onclick="editId=null;render()">Clear / New</button></div></div><div class="card"><h2>Saved Students</h2>${db.students.map(x=>`<div class="section row"><span><b>${esc(x.name)}</b> · ${esc(x.level)} ${x.exam==='ABRSM'?'· Grade '+x.grade+' · '+(x.pieces||[]).length+' pieces':''}</span><button onclick="editId='${x.id}';render()">Edit</button></div>`).join('')||'<p class="muted">No students yet.</p>'}</div>`;$('#level').value=s?.level||'Beginner';$('#exam').value=s?.exam||'none';$('#grade').value=s?.grade||'1';window.profilePieces=[...(s?.pieces||[])];$('#grade').onchange=()=>{window.profilePieces=[];renderProfilePieces()};$('#exam').onchange=renderProfilePieces;renderProfilePieces();renderProfileMethods()}
 
 function renderProfilePieces(){const on=$('#exam').value==='ABRSM';$('#grade').disabled=!on;$('#pieceProfile').innerHTML=on?`<label>Exam pieces (select all being prepared)</label><div class="chips">${catalog[$('#grade').value].map(p=>`<button class="chip ${profilePieces.includes(p.id)?'on':''}" onclick="toggleProfilePiece('${p.id}')">${p.id} · ${esc(p.name)}</button>`).join('')}</div><p class="muted">Piece names and teaching tags are draft data pending verification.</p>`:''}
 function toggleProfilePiece(id){profilePieces=profilePieces.includes(id)?profilePieces.filter(x=>x!==id):[...profilePieces,id];renderProfilePieces()}
@@ -102,6 +102,38 @@ function changeBars(type,key,id,v){let arr=type==='exam'?lesson.exam[key]:lesson
 function addSection(type,key){let arr=type==='exam'?lesson.exam[key]:lesson.general.find(x=>x.book===key)?.sections;arr.push(blank());renderGeneral();renderExam()}
 function removeSection(type,key,id){let arr=type==='exam'?lesson.exam[key]:lesson.general.find(x=>x.book===key)?.sections;arr.splice(arr.findIndex(x=>x.id===id),1);if(!arr.length)arr.push(blank());renderGeneral();renderExam()}
 const GENERAL_OPTIONS={Beginner:{progress:["New notes","Keyboard location","Hand position","New rhythm","New time signature","Treble / bass clef","Clef switching","Staccato","Legato","Dynamics","Fingering","Hands together","Other"],improve:["Note reading","Keyboard note recognition","Clef switching","Rhythm accuracy","Rhythm steadiness","Fingering","Hand position","Hands coordination","Articulation","Playing without stopping","Independent reading","Focus / attention","Other"]},Intermediate:{progress:["New notes / Note reading","New rhythm","New time signature","New key / Key signature","Chords / Harmony","Hands together","Articulation","Dynamics / Expression","Phrasing","Pedalling","Sight-reading","Scales / Arpeggios","Technique","Other","Intervals"],improve:["Note reading","Rhythm accuracy","Steady pulse","Hands-together coordination","Fingering","Technique / finger control","Articulation","Dynamics / expression","Phrasing","Playing without stopping","Other"]}};
+
+GENERAL_OPTIONS.Advanced = {
+  progress: [
+    "Technical exercises",
+    "Scales / Arpeggios",
+    "Tone production / Colour",
+    "Articulation",
+    "Dynamics / Expression",
+    "Phrasing / Musical direction",
+    "Tempo / Rubato",
+    "Pedalling",
+    "Musical structure / Form",
+    "Stylistic interpretation",
+    "Sight-reading",
+    "Performance preparation",
+    "Other"
+  ],
+  improve: [
+    "Note / Rhythm accuracy",
+    "Technical control / Finger independence",
+    "Tone quality",
+    "Articulation",
+    "Dynamic control",
+    "Phrasing / Musical direction",
+    "Tempo / Rubato control",
+    "Pedal control",
+    "Stylistic interpretation",
+    "Performance confidence",
+    "Other"
+  ]
+};
+
 const DEFAULT_METHODS=['Slow practice','Small sections','Hands separately','Clap / count first','Name notes before playing','Metronome practice','Repeat difficult passages','Rhythm variation','Hands together'];
 let methodSelection=[],extraMethods=[''],planDays='',planTimes='';
 function methodChip(v){return `<button class="chip ${methodSelection.includes(v)?'on':''}" onclick="toggleMethod(${JSON.stringify(v).replace(/"/g,'&quot;')})">${esc(v)}</button>`}
