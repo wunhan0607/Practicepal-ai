@@ -406,31 +406,60 @@ function message(r){
     };
     const noteDetail=Object.entries(sec.noteDetails||{}).filter(([,v])=>v?.length).map(([k,v])=>`${k}: ${v.join(', ')}`);
     if(noteDetail.length)lines.push(`Notes covered: ${noteDetail.join('; ')}.`);
-    const improvement=(sec.improve||'').replace(/(?:,?\s*(?:and\s+)?)?connecting and separating notes clearly(?:,?\s*(?:and\s+)?)?/g,' ').replace(/(?:,?\s*(?:and\s+)?)?articulation(?:,?\s*(?:and\s+)?)?/gi,' ').replace(/\s+,/g,',').replace(/,\s*,/g,',').trim().replace(/^(?:and|,)\s*|(?:,|and)\s*$/g,'');
+    const hasRhythm=(sec.rhythmDetails||[]).length>0;
+    // Avoid repeating the generic rhythm category when a specific rhythm is selected.
+    let improvement=(sec.improve||'').replace(/(?:,?\s*(?:and\s+)?)?connecting and separating notes clearly(?:,?\s*(?:and\s+)?)?/g,' ').replace(/(?:,?\s*(?:and\s+)?)?articulation(?:,?\s*(?:and\s+)?)?/gi,' ');
+    if(hasRhythm)improvement=improvement.replace(/(?:,?\s*(?:and\s+)?)?(?:keeping the rhythm accurate|playing the correct rhythm|playing the correct notes and rhythms)(?:,?\s*(?:and\s+)?)?/gi,' ');
+    improvement=improvement.replace(/\s+,/g,',').replace(/,\s*,/g,',').trim().replace(/^(?:and|,)\s*|(?:,|and)\s*$/g,'');
     if(improvement){const refined=sec.exam&&/playing with more expression/.test(improvement)&&abFocus.some(x=>/^dynamic shaping$/i.test(x))?'the changes between louder and softer passages':improvement;lines.push(`Please pay attention to ${refined}.`);}
-    if((sec.rhythmDetails||[]).length){
-      const selectedRhythms=unique(sec.rhythmDetails);
-      lines.push('For rhythm accuracy, please focus on '+format(selectedRhythms).toLowerCase()+'.');
+    let remainingTeachingNote=sec.teachingNote;
+    if(hasRhythm){
+      const rhythms=unique(sec.rhythmDetails);
+      const rhythmNames=format(rhythms).toLowerCase();
+      // Only merge explicit, recognizable teacher shorthand. Keep unknown notes intact.
+      const note=remainingTeachingNote.trim();
+      const rhythmMention=/\b(quavers?|eighth notes?|semiquavers?|sixteenth notes?|dotted rhythms?|triplets?|syncopation|rests?)\b/i;
+      const shortRequest=/\b(?:play(?:ing)?\s+)?(?:shorter|more short|too long)\b/i;
+      const noteIsOnlyShortRequest=note && shortRequest.test(note) &&
+        note.replace(rhythmMention,'').replace(/\b(?:play|playing|shorter|more|short|too|long|notes?|the|a|bit|please|should|be|need|needs|to)\b/gi,'').replace(/[\s.,!?-]/g,'')==='';
+      if(rhythms.length===1 && noteIsOnlyShortRequest){
+        lines.push('Please work on playing the '+rhythmNames+' with shorter note lengths.');
+        remainingTeachingNote='';
+      }else{
+        lines.push('Please pay attention to the accuracy of the '+rhythmNames+'.');
+      }
     }
     if(articulationNote)lines.push(articulate(articulationNote));
     else if(articulationSelected)lines.push('Please pay attention to whether the notes should be played smoothly or separately.');
-    if(sec.teachingNote)lines.push(/[.!?]$/.test(sec.teachingNote)?sec.teachingNote:sec.teachingNote+'.');
+    if(remainingTeachingNote)lines.push(/[.!?]$/.test(remainingTeachingNote)?remainingTeachingNote:remainingTeachingNote+'.');
     return lines.join(' ')||'Lesson recorded.';
   };
-  // One heading per book/piece; each recorded page range has its own subheading.
+  // Plain headings; one section puts its page in the heading, multiple sections use compact parenthesized labels.
   const grouped=new Map();
   for(const sec of sections){
     const groupKey=(sec.exam?'exam|':'general|')+sec.title;
     if(!grouped.has(groupKey))grouped.set(groupKey,[]);
     grouped.get(groupKey).push(sec);
   }
+  const scopeLabel=(sec)=>{
+    const raw=String(sec.unit||'').replace(/^pages?\s+/i,'').trim();
+    if(!raw||raw==='Whole Song')return '';
+    if(sec.exam){
+      if(/^lines?\b/i.test(raw))return raw.replace(/^line\b/i,'Lines');
+      if(/^bars?\b/i.test(raw))return raw.replace(/^bar\b/i,'Bars');
+      if(/^\d+\s*[-–]\s*\d+$/.test(raw))return 'Bars '+raw;
+      return raw;
+    }
+    return 'Page'+(/\d+\s*[-–]\s*\d+/.test(raw)?'s':'')+' '+raw;
+  };
   for(const entries of grouped.values()){
+    const single=entries.length===1;
+    const heading=entries[0].title+(single&&scopeLabel(entries[0])?' ('+scopeLabel(entries[0])+')':'');
     const blocks=entries.map(sec=>{
-      const pageTitle=sec.unit && sec.unit!=='Whole Song'
-        ? (sec.exam?sec.unit:sec.unit.replace(/^pages /i,'Pages ')) : '';
-      return (pageTitle?'*'+pageTitle+'*\n':'')+sectionSentence(sec);
+      const label=!single&&scopeLabel(sec)?'('+scopeLabel(sec)+') ':' ';
+      return (single?'':label.trimStart())+sectionSentence(sec);
     });
-    sentences.push('*'+entries[0].title+'*\n'+blocks.join('\n\n'));
+    sentences.push(heading+'\n'+blocks.join('\n'));
   }
   const generalPositive={'Better focus':'was more focused','Good effort':'put in good effort','More independent':'worked more independently','More confident':'played with more confidence','Faster response':'responded more quickly'};
   const gp=(r.positiveGeneral||[]).map(x=>generalPositive[x]).filter(Boolean);
