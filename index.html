@@ -408,12 +408,30 @@ function message(r){
     if(noteDetail.length)lines.push(`Notes covered: ${noteDetail.join('; ')}.`);
     const improvement=(sec.improve||'').replace(/(?:,?\s*(?:and\s+)?)?connecting and separating notes clearly(?:,?\s*(?:and\s+)?)?/g,' ').replace(/(?:,?\s*(?:and\s+)?)?articulation(?:,?\s*(?:and\s+)?)?/gi,' ').replace(/\s+,/g,',').replace(/,\s*,/g,',').trim().replace(/^(?:and|,)\s*|(?:,|and)\s*$/g,'');
     if(improvement){const refined=sec.exam&&/playing with more expression/.test(improvement)&&abFocus.some(x=>/^dynamic shaping$/i.test(x))?'the changes between louder and softer passages':improvement;lines.push(`Please pay attention to ${refined}.`);}
+    if((sec.rhythmDetails||[]).length){
+      const selectedRhythms=unique(sec.rhythmDetails);
+      lines.push('For rhythm accuracy, please focus on '+format(selectedRhythms).toLowerCase()+'.');
+    }
     if(articulationNote)lines.push(articulate(articulationNote));
     else if(articulationSelected)lines.push('Please pay attention to whether the notes should be played smoothly or separately.');
     if(sec.teachingNote)lines.push(/[.!?]$/.test(sec.teachingNote)?sec.teachingNote:sec.teachingNote+'.');
-    return `*${sec.title}*\n${lines.join(' ')||'Lesson recorded.'}`;
+    return lines.join(' ')||'Lesson recorded.';
   };
-  sections.forEach(sec=>sentences.push(sectionSentence(sec)));
+  // One heading per book/piece; each recorded page range has its own subheading.
+  const grouped=new Map();
+  for(const sec of sections){
+    const groupKey=(sec.exam?'exam|':'general|')+sec.title;
+    if(!grouped.has(groupKey))grouped.set(groupKey,[]);
+    grouped.get(groupKey).push(sec);
+  }
+  for(const entries of grouped.values()){
+    const blocks=entries.map(sec=>{
+      const pageTitle=sec.unit && sec.unit!=='Whole Song'
+        ? (sec.exam?sec.unit:sec.unit.replace(/^pages /i,'Pages ')) : '';
+      return (pageTitle?'*'+pageTitle+'*\n':'')+sectionSentence(sec);
+    });
+    sentences.push('*'+entries[0].title+'*\n'+blocks.join('\n\n'));
+  }
   const generalPositive={'Better focus':'was more focused','Good effort':'put in good effort','More independent':'worked more independently','More confident':'played with more confidence','Faster response':'responded more quickly'};
   const gp=(r.positiveGeneral||[]).map(x=>generalPositive[x]).filter(Boolean);
   if(gp.length)sentences.push(`${name} ${format(gp)} today!`);
